@@ -65,12 +65,6 @@ namespace Mirror
         /// </summary>
         public uint peerBaseTimeoutMultiplier = 3;
 
-        public bool connectToFacilitator = false;
-        public string FacilitatorIP = "127.0.0.1";
-        public ushort FacilitatorPort = 10101;
-        private ushort targetID;
-        private Peer FacilitatorPeer = new Peer();
-
         // -- SERVER WORLD VARIABLES -- //
         // Explicitly give these new references on startup, just to make sure that we get no null reference exceptions.
         private Host server = new Host();
@@ -681,6 +675,13 @@ namespace Mirror
             ClientConnect = 7,
             ClientNoTarget = 8
         }
+
+        public bool connectToFacilitator = false;
+        public string FacilitatorIP = "127.0.0.1";
+        public ushort FacilitatorPort = 10101;
+        private ushort targetID;
+        private Peer FacilitatorPeer = new Peer();
+
         public Action<ushort> OnReceiveID;
         Dictionary<ushort, Peer> ServerIDs;
         Dictionary<Peer, ushort> IDServers;
