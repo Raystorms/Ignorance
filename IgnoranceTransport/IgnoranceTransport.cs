@@ -427,14 +427,13 @@ namespace Mirror
         /// <param name="address">The address to bind to.</param>
         /// <param name="port">The port to use. Do not run more than one server on the same port.</param>
         /// <param name="maxConnections">How many connections can we have?</param>
-        public override void ServerStart()
+        public override void ServerStart() 
         {
             // Do not attempt to start more than one server.
             // Check if the server is active before attempting to create. If it returns true,
             // then we should not continue, and we'll emit a refusal error message.
             // This should be classified as a dirty hack and if it doesn't work then well, shit.
-            if (ServerActive())
-            {
+            if (ServerActive()) {
                 LogError("Ignorance Transport: Refusing to start another server instance! There's already one running.");
                 return;
             }
@@ -453,8 +452,7 @@ namespace Mirror
             serverAddress.SetHost("::0");
 #else
             if (verboseLoggingEnabled) Log(string.Format("Ignorance Transport: Server startup on port {0} with capacity of {1} concurrent connections", Port, NetworkManager.singleton.maxConnections));
-            if(m_BindToAllInterfaces)
-            {
+            if (m_BindToAllInterfaces) {
                 Log("Ignorance Transport: Binding to all available interfaces.");
 #if UNITY_OSX
                 serverAddress.SetHost("::0");
@@ -462,12 +460,10 @@ namespace Mirror
                 serverAddress.SetHost("0.0.0.0");
 #endif
             } else {
-                if (!string.IsNullOrEmpty(NetworkManager.singleton.networkAddress))
-                {
+                if (!string.IsNullOrEmpty(NetworkManager.singleton.networkAddress)) {
                     Log(string.Format("Ignorance Transport: Using {0} as our specific bind address", NetworkManager.singleton.networkAddress));
                     serverAddress.SetHost(NetworkManager.singleton.networkAddress);
-                } else
-                {
+                } else {
                     // WTF happened to reach here?
 #if UNITY_OSX
                     serverAddress.SetHost("::0");
@@ -487,10 +483,7 @@ namespace Mirror
             Log(string.Format("Ignorance Transport: Attempted to create server with capacity of {0} connections on UDP port {1}", NetworkManager.singleton.maxConnections, Port));
             Log("Ignorance Transport: If you see this, the server most likely was successfully created and started! (This is good.)");
 
-            if (ConnectWithFacilitator(server)) {
-                //if connecting wth facilitator && address is a valid Uint
-                return;
-            }
+            ConnectWithFacilitator(server);
         }
 
         /// <summary>
@@ -714,9 +707,16 @@ namespace Mirror
             Library.Deinitialize();
             Log("Ignorance Transport shutdown complete. Have a good one.");
         }
+        
+        // Mirror master update loops.
+        public void Update()
+        {
+            while (ProcessClientMessage()) ;
+            while (ProcessServerMessage()) ;
+        }
 
         #region Facilitator stuff
-        private enum FacilitatorMsgCode{
+        private enum FacilitatorMsgCode {
             ServerRegis = 1,
             ClientRequest = 2,
             ServerRegisReply = 3,
@@ -724,7 +724,7 @@ namespace Mirror
             ClientConnect = 7,
             ClientNoTarget = 8
         }
-
+        [Header("Facilitator Settings")]
         public bool connectToFacilitator = false;
         public string FacilitatorIP = "127.0.0.1";
         public ushort FacilitatorPort = 10101;
@@ -740,7 +740,7 @@ namespace Mirror
                 case EventType.Connect:
                     if (verboseLoggingEnabled) Log(string.Format("Ignorance Nat Facilitator: connect; real ENET peerID {0}, address {1}", incomingEvent.Peer.ID, incomingEvent.Peer.IP));
                     else Log(string.Format("Ignorance Transport: Connection established with {0}", incomingEvent.Peer.IP));
-                    
+
                     if (useCustomPeerTimeout) incomingEvent.Peer.Timeout(Library.throttleScale, peerBaseTimeout, peerBaseTimeout * peerBaseTimeoutMultiplier);
                     if (isFacilitator) {
                         break;
@@ -756,6 +756,7 @@ namespace Mirror
                         mailingPigeon.Create(msg, packetSendMethods[0]);
                         incomingEvent.Peer.Send(0, ref mailingPigeon);
                     }
+                    //data passed from ProccessServerMessage
                     if (IsValid(server)) {
                         Log("Facilitator - Server Connected To Facilitator");
                         byte[] msg = new byte[1] { (byte)FacilitatorMsgCode.ServerRegis }; // 1 is code for server
@@ -771,6 +772,7 @@ namespace Mirror
                         incomingEvent.Peer.ID, incomingEvent.Peer.IP));
                     else Log(string.Format("Ignorance Facilitator: Client encountered {0}", incomingEvent.Type == EventType.Disconnect ? "disconnection" : "timeout"));
                     if (!isFacilitator) {
+                        Log("Disconnected from Facilitator, or failed to connect");
                         break;
                     }
                     ushort serverid;
@@ -787,22 +789,25 @@ namespace Mirror
                     incomingEvent.Packet.CopyTo(data);
                     incomingEvent.Packet.Dispose();
                     byte header = data[0]; //first index in data should be a header to know what kind of data this is
+
                     //message from the server, register him into the Dict & give him an ID
                     if (header == (byte)FacilitatorMsgCode.ServerRegis) {
                         if (!IDServers.ContainsKey(incomingEvent.Peer)) {
+                            //if that peer doesn't exist on our server, let's add him to our dict
+                            while (ServerIDs.ContainsKey(FacilitatorNetIDCount)) {
+                                //find the key that is empty (ushort will automatically wrap around back to 0)
+                                FacilitatorNetIDCount++;
+                            }
                             ServerIDs[FacilitatorNetIDCount] = incomingEvent.Peer;
                             IDServers[incomingEvent.Peer] = FacilitatorNetIDCount;
                             Log("Facilitator - Server Registered ID: " + FacilitatorNetIDCount + " IP : " + incomingEvent.Peer.IP + " Port: " + incomingEvent.Peer.Port);
-                            FacilitatorNetIDCount++;
-                            if (FacilitatorNetIDCount > ushort.MaxValue - 5)
-                                FacilitatorNetIDCount = 0;
-                            Packet mailingPigeon = default(Packet);
-                            //send his assigned ID back to him
-                            byte[] msg = new byte[3];
-                            msg[0] = (byte)FacilitatorMsgCode.ServerRegisReply;
-                            BitConverter.GetBytes(IDServers[incomingEvent.Peer]).CopyTo(msg, 1);
-                            FacilitatorSendMsg(msg, incomingEvent.Peer);
+
                         }
+                        //send his assigned ID back to him
+                        byte[] msg = new byte[3];
+                        msg[0] = (byte)FacilitatorMsgCode.ServerRegisReply;
+                        BitConverter.GetBytes(IDServers[incomingEvent.Peer]).CopyTo(msg, 1);
+                        FacilitatorSendMsg(msg, incomingEvent.Peer);
                     }
 
                     //trading Address
@@ -818,7 +823,7 @@ namespace Mirror
                             FacilitatorSendMsg(msg, incomingEvent.Peer);
 
                             //for server
-                            msg = CreateAddressMesage(incomingEvent.Peer.IP, incomingEvent.Peer.Port, (byte)FacilitatorMsgCode.ClientConnect);
+                            msg = CreateAddressMesage(incomingEvent.Peer.IP, incomingEvent.Peer.Port, (byte)FacilitatorMsgCode.ServerPunch);
                             FacilitatorSendMsg(msg, targetPeer);
                         } else {
                             Log("Facilitator - No such ID existed, BEGONE!");
@@ -827,34 +832,36 @@ namespace Mirror
                         }
                     }
 
-                    
+                    //this is run on the server & client
                     if (header == (byte)FacilitatorMsgCode.ServerPunch || header == (byte)FacilitatorMsgCode.ClientConnect) {
                         var targetPort = BitConverter.ToUInt16(data, 1);
                         var targetIp = System.Text.Encoding.ASCII.GetString(data, 3, data.Length - 3);
-                        Address target= new Address();
+                        Address target = new Address();
                         target.SetHost(targetIp);
                         target.Port = targetPort;
-                        if (header == (byte)FacilitatorMsgCode.ServerPunch) {// server punch
+                        if (header == (byte)FacilitatorMsgCode.ServerPunch) {// server will try to punch
                             Punch(targetIp, targetPort);
                         }
-                        if (header == (byte)FacilitatorMsgCode.ClientConnect) {// client connect
-                            Log("Target IP: " + targetIp + " Port: " + targetPort);
-                            FacilitatorPeer.DisconnectNow(0);
-                            clientPeer = client.Connect(target);
+                        if (header == (byte)FacilitatorMsgCode.ClientConnect) {// client will connect
+                            if (IsValid(client)) {
+                                Log("Target IP: " + targetIp + " Port: " + targetPort);
+                                FacilitatorPeer.DisconnectNow(0);
+                                clientPeer = client.Connect(target);
+                            }
                         }
                     }
 
+                    //Handle Client getting to target to connect to
                     if (header == (byte)FacilitatorMsgCode.ClientNoTarget) {
-                        Log("No target");
-                        Log("Client: Disconnecting from Facilitator");
+                        Log("No target, Client: Disconnecting from Facilitator");
                         FacilitatorPeer.DisconnectNow(0);
                         OnClientDisconnected.Invoke();
                     }
 
-                    //handle getting reply
+                    //handle getting the registered ID reply
                     if (header == (byte)FacilitatorMsgCode.ServerRegisReply) {
                         var id = BitConverter.ToUInt16(data, 1);
-                        Log("Looks like My ID is " + id + ", I should put this on some server listing");
+                        Log("Looks like My ID is " + id + ", I should put this on some server browser stuff");
                         OnReceiveID?.Invoke(id);
                     }
 
@@ -864,8 +871,6 @@ namespace Mirror
                 case EventType.None:
                     return false;
             }
-
-            // We're done here. Bugger off.
             return true;
         }
 
@@ -887,48 +892,46 @@ namespace Mirror
 
         private bool ProcessFacilitatorMessage() {
             Event incomingEvent;
-
-            // Safety check: if the client isn't created, then we shouldn't do anything. ENet might be warming up.
             if (!IsValid(facilitator)) {
                 return false;
             }
-
             // Get the next message...
             facilitator.Service(0, out incomingEvent);
             return ProcessFacilitatorMessage(incomingEvent, true);
         }
 
         private bool ConnectWithFacilitator(Host host, string targetId = "server") {
-            if (connectToFacilitator) {
-                Address facilitatorAddress = new Address();
-                facilitatorAddress.SetHost(FacilitatorIP);
-                facilitatorAddress.Port = FacilitatorPort;
-                if (ushort.TryParse(targetId, out targetID)) {
-                    FacilitatorPeer = host.Connect(facilitatorAddress);
-                    return true;
-                } else if (targetId == "server") {
-                    FacilitatorPeer = host.Connect(facilitatorAddress);
-                } else {
-                    LogError("address was not a valid Ushort ID, will continue connection nomrally using address");
-                }
+            if (!connectToFacilitator)
+                return false;
+            Log("Connecting to Facilitator");
+            Address facilitatorAddress = new Address();
+            facilitatorAddress.SetHost(FacilitatorIP);
+            facilitatorAddress.Port = FacilitatorPort;
+            if (ushort.TryParse(targetId, out targetID)) {
+                FacilitatorPeer = host.Connect(facilitatorAddress);
+                return true;
+            } else if (targetId == "server") {
+                FacilitatorPeer = host.Connect(facilitatorAddress);
+            } else {
+                LogWarning("address was not a valid Ushort ID, will continue connection nomrally using address");
             }
             return false;
         }
 
         //punch a hole in the NAT
         public void Punch(string punchIp, ushort punchPort) {
+            if (!IsValid(server))
+                return;
             Address punchTarget = new Address();
             punchTarget.SetHost(punchIp);
             punchTarget.Port = punchPort;
 
-            if (server != null && server.IsSet) {
-                var punchpeer = server.Connect(punchTarget);
-                Packet p = new Packet();
-                p.Create(new byte[0]);
-                punchpeer.Send(0, ref p);
-                punchpeer.Disconnect(0);
-                Log("Server Punching to: " + punchIp + " Port: " + punchPort);
-            }
+            var punchpeer = server.Connect(punchTarget);
+            Packet p = new Packet();
+            p.Create(new byte[0]);
+            punchpeer.Send(0, ref p);
+            punchpeer.Disconnect(0);
+            Log("Server Punching to: " + punchIp + " Port: " + punchPort);
         }
 
         public void StartFacilitator(string address = "", ushort port = 0) {
@@ -947,7 +950,6 @@ namespace Mirror
                 Log(string.Format("Ignorance Transport: Facilitator Binding to address {0}", FacilitatorIP));
                 facilitatorAddress.SetHost(FacilitatorIP);
             }
-
             facilitatorAddress.Port = FacilitatorPort;
 
             facilitator.Create(facilitatorAddress, (ushort)Library.maxPeers);
@@ -960,26 +962,11 @@ namespace Mirror
             facilitator?.Flush();
             facilitator?.Dispose();
         }
-        float heartbeatTimer;
+
         public void UpdateFacilitator() {
             while (ProcessFacilitatorMessage()) ;
-            //send heartbeat every 10 sec
-            if (Time.time > heartbeatTimer + 10) {
-                foreach (var item in ServerIDs) {
-                    FacilitatorSendMsg(new byte[1] { 0}, item.Value);
-                }
-                heartbeatTimer = Time.time;
-                Log("Heartbeat");
-            }
         }
         #endregion
-
-        // Mirror master update loops.
-        public void Update()
-        {
-            while (ProcessClientMessage()) ;
-            while (ProcessServerMessage()) ;
-        }
 
         // -- TIMEOUT SETTINGS -- //
         /// <summary>
