@@ -779,7 +779,7 @@ namespace Mirror
                     if (IDServers.TryGetValue(incomingEvent.Peer, out serverid)) {
                         IDServers.Remove(incomingEvent.Peer);
                         ServerIDs.Remove(serverid);
-                        Log("Facilitator - Server Removed ID: " + serverid + " IP : " + incomingEvent.Peer.IP + " Port: " + incomingEvent.Peer.Port);
+                        Log("Facilitator - Server Removed ID: " + serverid + " IP : " + incomingEvent.Peer.IP.Substring(0, 3) + " Port: " + incomingEvent.Peer.Port.ToString().Substring(0, 2));
                     }
                     break;
                 case EventType.Receive:
@@ -800,7 +800,7 @@ namespace Mirror
                             }
                             ServerIDs[FacilitatorNetIDCount] = incomingEvent.Peer;
                             IDServers[incomingEvent.Peer] = FacilitatorNetIDCount;
-                            Log("Facilitator - Server Registered ID: " + FacilitatorNetIDCount + " IP : " + incomingEvent.Peer.IP + " Port: " + incomingEvent.Peer.Port);
+                            Log("Facilitator - Server Registered ID: " + FacilitatorNetIDCount + " IP : " + incomingEvent.Peer.IP.Substring(0,3) + " Port: " + incomingEvent.Peer.Port.ToString().Substring(0,2));
 
                         }
                         //send his assigned ID back to him
@@ -844,7 +844,7 @@ namespace Mirror
                         }
                         if (header == (byte)FacilitatorMsgCode.ClientConnect) {// client will connect
                             if (IsValid(client)) {
-                                Log("Target IP: " + targetIp + " Port: " + targetPort);
+                                Log("Target IP: " + targetIp.Substring(0, 3) + " Port: " + targetPort.ToString().Substring(0,2));
                                 FacilitatorPeer.DisconnectNow(0);
                                 clientPeer = client.Connect(target);
                             }
@@ -931,7 +931,7 @@ namespace Mirror
             p.Create(new byte[0]);
             punchpeer.Send(0, ref p);
             punchpeer.Disconnect(0);
-            Log("Server Punching to: " + punchIp + " Port: " + punchPort);
+            Log("Server Punching to: " + punchIp.Substring(0,3) + " Port: " + punchPort.ToString().Substring(0,2));
         }
 
         public void StartFacilitator(string address = "", ushort port = 0) {
