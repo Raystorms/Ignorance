@@ -26,6 +26,7 @@ namespace Mirror
     /// <summary>
     /// Ignorance rUDP Transport is built upon the ENet-C# wrapper by nxrighthere.
     /// </summary>
+    [HelpURL("https://github.com/SoftwareGuy/Ignorance/blob/master/README.md")]
     public class IgnoranceTransport : Transport
     {
         // -- GENERAL VARIABLES -- //
@@ -709,10 +710,10 @@ namespace Mirror
         }
         
         // Mirror master update loops.
-        public void Update()
+        public void LateUpdate()
         {
-            while (ProcessClientMessage()) ;
-            while (ProcessServerMessage()) ;
+            while (enabled && ProcessClientMessage()) ;
+            while (enabled && ProcessServerMessage()) ;
         }
 
         #region Facilitator stuff
